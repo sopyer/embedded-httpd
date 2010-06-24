@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "webserver.h"
 #include "webresponse.h"
@@ -64,7 +65,7 @@ static void svgpage( WebResponse* R )
   webresponse_end(R);
 }
 
-static CAPI void inputpage( WebResponse* R )
+static void inputpage( WebResponse* R )
 {
   // it doesn't matter if it's a POST or GET argument; you can get it
   // by its name. if the argument is unknown, a null pointer is returned
@@ -100,7 +101,7 @@ static CAPI void inputpage( WebResponse* R )
   webresponse_end(R);
 }
 
-static CAPI void http_handler( WebResponse* R, void* _userdata )
+static void http_handler( WebResponse* R, void* _userdata )
 {
   // normally you would use a hashtable, map or something similar here
   const char* loc = webresponse_location(R);
@@ -114,7 +115,7 @@ static CAPI void http_handler( WebResponse* R, void* _userdata )
     mem = loadfile(webresponse_location(R)+1,&size);
     if (mem)
     {
-      webresponse_response(R, 220, mem, size, "Content-Type: text/xml\r\n");
+      webresponse_response(R, 220, (const char*) mem, size, "Content-Type: text/xml\r\n");
     }
     else
     {
@@ -124,7 +125,7 @@ static CAPI void http_handler( WebResponse* R, void* _userdata )
 
 }
 
-void download_something()
+static void download_something()
 {
   // important: the buffer is re-used all over again and prevents allocations
   WebRequest* req = webrequest_create("localhost", 80, "/foo/bar/filename.zip", "GET", 256*1024);
@@ -142,8 +143,18 @@ void download_something()
   }
 }
 
+#ifdef WIN32
+#include <winsock.h>
+#pragma comment(lib,"wsock32.lib")
+#endif
+
 int main (int argc, const char * argv[])
 {
+#ifdef WIN32
+  WSADATA data;
+  WSAStartup(MAKEWORD(2,2),&data);
+#endif
+
   printf("server runs on http://localhost:8080/\n(default port 80 requires admin rights)\n");
   
   WebServer* srv = webserver_create(8080, http_handler, 0);

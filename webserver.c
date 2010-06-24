@@ -31,6 +31,8 @@
 #include "webresponse.h"
 #include "network.h"
 
+#include <stdio.h>
+
 struct _WebServer
 {
   int                 socket;

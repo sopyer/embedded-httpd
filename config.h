@@ -30,12 +30,6 @@
 #define DBALSTER_CONFIG_H
 
 #include <sys/types.h>
-#include <stddef.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <assert.h>
 
 #ifdef __cplusplus
 # ifdef WIN32
@@ -45,6 +39,7 @@
 # endif
 #else
 #	define CAPI
+# include <stdbool.h>
 #endif
 
 #endif
