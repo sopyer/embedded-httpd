@@ -34,10 +34,6 @@
 #include <stdarg.h>
 #include <errno.h>
 
-#ifdef WIN32
-#pragma comment(lib,"wsock32.lib")
-#endif
-
 struct _WebRequest {
   unsigned short  result;
   unsigned short  port;
