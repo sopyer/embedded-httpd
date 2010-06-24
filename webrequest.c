@@ -58,6 +58,7 @@ CAPI void webrequest_sprintf( WebRequest* _req, const char* _fmt, ... )
 {
   va_list ap;
   va_start(ap,_fmt);
+  // TODO: vsnprintf
   int len = vsprintf(_req->bytes + _req->bytesUsed,_fmt,ap);
   _req->bytesUsed += len;
   va_end(ap);
@@ -98,9 +99,9 @@ CAPI WebRequest* webrequest_create( const char* _hostname, unsigned short _port,
     webrequest_strdup(req,_hostname);
     req->port = _port;    
     webrequest_sprintf(req,"%s %s HTTP/1.1\r\n",_method,_location);
-    webrequest_sprintf(req,"Host: dbalster\r\n");
-    webrequest_sprintf(req,"Connection: close\r\n");
-    webrequest_sprintf(req,"Content-Length: 00000000\r\n");
+    webrequest_strcat(req,"Host: dbalster\r\n");
+    webrequest_strcat(req,"Connection: close\r\n");
+    webrequest_strcat(req,"Content-Length: 00000000\r\n");
     
     webrequest_reset(req);
   }
@@ -114,7 +115,7 @@ CAPI void webrequest_reset( WebRequest* _req )
   if (p)
   {
     _req->bytesUsed = p-_req->bytes;
-    webrequest_sprintf(_req,"Content-Length: 00000000\r\n");
+    webrequest_strcat(_req,"Content-Length: 00000000\r\n");
   }
 }
 
@@ -137,7 +138,7 @@ CAPI bool webrequest_execute( WebRequest* _req )
   char* p = strstr(start,"\r\n\r\n");
   if (p==0)
   {
-    webrequest_sprintf(_req,"\r\n");
+    webrequest_strcat(_req,"\r\n");
     p = strstr(start,"\r\n\r\n");
   }
   if (p)

@@ -5,13 +5,38 @@
 #include "webresponse.h"
 #include "webrequest.h"
 
+void* loadfile( const char* _filename, size_t* _size )
+{
+  void* mem = 0;
+  FILE* file = fopen(_filename,"rb");
+  if (file)
+  {
+    fseek(file, 0, SEEK_END);
+    *_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    mem = malloc(*_size);
+    fread(mem, 1, *_size, file);
+    fclose(file);
+  }
+  return mem;
+}
+
 static void indexpage( WebResponse* R )
 {
+  // simple response, in one piece.
+  // it just answers the incoming request with one single output string
+  // if content-size is zero, strlen is used to determine the content size
   webresponse_response(R, 220, "Hello, world!", 0, 0);
 }
 
 static void svgpage( WebResponse* R )
 {
+  // a chunked request. every "writef" directly writes to the outgoing socket.
+  // this increases the overhead/timing of the whole response, but it doesn't require
+  // a dynamic buffer management - which is perfect for embedded devices
+  
+  // in this case, it sends a mixed SVG/HTML document
+  
   webresponse_begin(R, 220, "Content-Type: text/xml\r\n");
   
   webresponse_writef(R,
@@ -26,24 +51,32 @@ static void svgpage( WebResponse* R )
                      );
   
   webresponse_writef(R, "<h1>%s</h1>",webresponse_location(R));
-  
+
   webresponse_writef(R,
    "<svg:svg version=\"1.1\">"
    "<svg:rect style=\"fill:#f73\" id=\"x\" width=\"300 px\" height=\"300 px\" x=\"0 px\" y=\"0 px\"/>"
    "</svg:svg> "
    );
-  
-  
+
   webresponse_writef(R, "</body></html>");
+  
+  // don't forget to "end" the response
   webresponse_end(R);
 }
 
 static CAPI void inputpage( WebResponse* R )
 {
+  // it doesn't matter if it's a POST or GET argument; you can get it
+  // by its name. if the argument is unknown, a null pointer is returned
+  //
+  // internally all parameters/headers have already been sorted, _get_arg()
+  // is using a binary search
   const char* name = webresponse_get_arg(R, "field1");
   if (name==0) name = "???";
   
   webresponse_begin(R,220,0);
+  
+  // this shows how to enumerate over all arguments and headers
   
   webresponse_writef(R, "<h2>http headers</h2>");
   for (size_t i=0; i<webresponse_get_n_headers(R); ++i)
@@ -75,7 +108,19 @@ static CAPI void http_handler( WebResponse* R, void* _userdata )
   else if (0==strcmp(loc,"/svg")) svgpage(R);
   else if (0==strcmp(loc,"/input")) inputpage(R);
   else
-    webresponse_response(R, 404, "<h1>not really found</h1>", 0, 0);
+  {
+    void* mem;
+    size_t size;
+    mem = loadfile(webresponse_location(R)+1,&size);
+    if (mem)
+    {
+      webresponse_response(R, 220, mem, size, "Content-Type: text/xml\r\n");
+    }
+    else
+    {
+      webresponse_response(R, 404, "<h1>not really found</h1>", 0, 0);
+    }
+  }
 
 }
 
@@ -92,6 +137,7 @@ void download_something()
     {
       // OK
     }
+    // frees the buffer, closes the connection
     webrequest_destroy(req);
   }
 }
@@ -105,6 +151,7 @@ int main (int argc, const char * argv[])
   {
     while (1)
     {
+      // webserver_process can be used in polling or waiting mode
       webserver_process(srv, true);
     }
     webserver_destroy(srv);
