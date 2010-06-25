@@ -25,12 +25,26 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "webresponse.h"
-#include "network.h"
-#include <string.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include "httpd.h"
+
+#include <string.h> // strcat, strcmp, strstr, strchr, strlen, strcpy
+#include <stdarg.h> // va_start, va_end, va_list, strtoul, 
+#include <errno.h>  // fprintf, printf, strerror, gethostbyname, memcpy, htons
+#include <stdio.h>  // close(socket), send, recv, socket, setsockopt, bind, listen, accept, select, connect
+#include <stdlib.h> // calloc, free, qsort, vsprintf, sprintf, bsearch
+
+#ifdef WIN32
+#  include <winsock.h>
+typedef int socklen_t;
+#else
+#  include <netdb.h>
+#  include <sys/socket.h>
+#  include <netinet/in.h>
+#  include <arpa/inet.h>
+#  include <resolv.h>
+#  include <unistd.h>
+#  define closesocket close
+#endif
 
 static int hexnibble( const char c )
 {
@@ -42,7 +56,7 @@ static int hexnibble( const char c )
 }
 
 // decode '+' and '%xx' back into bytes
-char* uri_decode_inplace( char* _text )
+static char* uri_decode_inplace( char* _text )
 {
   int j=0;
   for (int i=0; _text[i]; ++i)
@@ -68,7 +82,7 @@ char* uri_decode_inplace( char* _text )
   return _text;
 }
 
-void quoting_strncpy_append( const char* _text, char* _output, size_t _size, size_t* _index )
+static void quoting_strncpy_append( const char* _text, char* _output, size_t _size, size_t* _index )
 {
   if (_output)
   {
@@ -78,7 +92,7 @@ void quoting_strncpy_append( const char* _text, char* _output, size_t _size, siz
   *_index += strlen(_text);
 }
 
-size_t quoting_strncpy( char* _output, const char* _input, size_t _size )
+static size_t quoting_strncpy( char* _output, const char* _input, size_t _size )
 {
   size_t i=0;
   size_t o=0;
@@ -105,7 +119,7 @@ size_t quoting_strncpy( char* _output, const char* _input, size_t _size )
   return o;
 }
 
-struct _WebResponse
+struct _HttpResponse
 {
   int netsocket;
   char* memory;
@@ -139,9 +153,9 @@ HttpErrorMessages[] =
   { 505, "HTTP Version Not Supported" }, 
 };
 
-CAPI WebResponse*	webresponse_create (unsigned int _socket)
+HTTPD_C_API HttpResponse*	httpresponse_create (unsigned int _socket)
 {
-	WebResponse* wr = (WebResponse*) calloc(1,sizeof(WebResponse));
+	HttpResponse* wr = (HttpResponse*) calloc(1,sizeof(HttpResponse));
   if (wr)
   {
     wr->netsocket = _socket;
@@ -157,19 +171,19 @@ CAPI WebResponse*	webresponse_create (unsigned int _socket)
 	return wr;
 }
 
-CAPI void webresponse_destroy (WebResponse* _context)
+HTTPD_C_API void httpresponse_destroy (HttpResponse* _context)
 {
 	free (_context->memory);
 	closesocket(_context->netsocket); 
 	free (_context);
 }
 
-CAPI int webresponse_write(WebResponse* _context, const void* _memory, const int _size)
+HTTPD_C_API int httpresponse_write(HttpResponse* _context, const void* _memory, const int _size)
 {
   return send(_context->netsocket, (const char*)_memory, (int)_size, 0);
 }
 
-CAPI int webresponse_read(WebResponse* _context, void* _memory, const int _size)
+static int httpresponse_read(HttpResponse* _context, void* _memory, const int _size)
 {
   return recv(_context->netsocket, (char*)_memory, (int)_size, 0);
 }
@@ -181,14 +195,15 @@ static int comparePairs(const void* l, const void* r)
   return strcmp(pl->name, pr->name);
 }
 
-CAPI bool webresponse_parse(WebResponse* _context)
+HTTPD_C_API bool httpresponse_parse(HttpResponse* _context)
 {
+  // TODO: context, make buffer configurable
   const static int RECEIVE_BUFFER_SIZE = 8 * 1024;
   char buffer[RECEIVE_BUFFER_SIZE];
-  int bytesRead = webresponse_read(_context, buffer, RECEIVE_BUFFER_SIZE - 1);
+  int bytesRead = httpresponse_read(_context, buffer, RECEIVE_BUFFER_SIZE - 1);
   if (bytesRead <= 0)
   {
-    return webresponse_response(_context, 500, 0, 0, 0);
+    return httpresponse_response(_context, 500, 0, 0, 0);
   }
   buffer[bytesRead] = 0;
 
@@ -197,7 +212,7 @@ CAPI bool webresponse_parse(WebResponse* _context)
   char* eom = strchr(method, ' ');
   if (0 == eom)
   {
-    return webresponse_response(_context, 500, 0, 0, 0);
+    return httpresponse_response(_context, 500, 0, 0, 0);
   }
   *eom++ = 0; // terminate method
 
@@ -206,7 +221,7 @@ CAPI bool webresponse_parse(WebResponse* _context)
   char* eol = strstr(location, " HTTP/1.1\r\n");
   if (0 == eol)
   {
-    return webresponse_response(_context, 500, 0, 0, 0);
+    return httpresponse_response(_context, 500, 0, 0, 0);
   }
   *eol = 0;	// terminate location
 
@@ -229,18 +244,18 @@ CAPI bool webresponse_parse(WebResponse* _context)
     eoh = strstr(eol, "\r\n\r\n");
     if (0 == eoh)
     {
-      bytesRead += webresponse_read(_context, buffer + bytesRead, RECEIVE_BUFFER_SIZE - bytesRead - 1);
+      bytesRead += httpresponse_read(_context, buffer + bytesRead, RECEIVE_BUFFER_SIZE - bytesRead - 1);
       buffer[bytesRead] = 0;
     }
     
     if (0 == eoh)
-      return webresponse_response(_context, 500, 0, 0, 0);
+      return httpresponse_response(_context, 500, 0, 0, 0);
     
     eoh += 4; // end-of-header now points directly to the first byte of content
   }
   else
   {
-    return webresponse_response(_context, 500, "unsupported method", 0, 0);
+    return httpresponse_response(_context, 500, "unsupported method", 0, 0);
   }
 
   // method .. eom : size of method
@@ -382,7 +397,7 @@ CAPI bool webresponse_parse(WebResponse* _context)
   return true;
 }
 
-CAPI int webresponse_writef(WebResponse* _context, const char* _fmt, ...)
+HTTPD_C_API int httpresponse_writef(HttpResponse* _context, const char* _fmt, ...)
 {
   char buf[4096];
   va_list ap;
@@ -398,16 +413,16 @@ CAPI int webresponse_writef(WebResponse* _context, const char* _fmt, ...)
   {
     char num[10];
     sprintf(num, "%x\r\n", len);
-    webresponse_write(_context, num, (int)strlen(num));
-    len = webresponse_write(_context, buf, len);
-    webresponse_write(_context, "\r\n", 2);
+    httpresponse_write(_context, num, (int)strlen(num));
+    len = httpresponse_write(_context, buf, len);
+    httpresponse_write(_context, "\r\n", 2);
     return len;
   }
 
-  return webresponse_write(_context, buf, len);
+  return httpresponse_write(_context, buf, len);
 }
 
-CAPI bool webresponse_response (WebResponse* _context, unsigned int _code, const char* _content, const size_t _contentLength, const char* _userHeader)
+HTTPD_C_API bool httpresponse_response (HttpResponse* _context, unsigned int _code, const char* _content, const size_t _contentLength, const char* _userHeader)
 {
   _context->chunked = false;
 
@@ -427,7 +442,7 @@ CAPI bool webresponse_response (WebResponse* _context, unsigned int _code, const
   const char* userHeader = _userHeader ? _userHeader : "Content-Type: text/html\r\n";
 
   // send HTTP header
-  webresponse_writef(_context, "HTTP/1.1 %03d %s\r\n"
+  httpresponse_writef(_context, "HTTP/1.1 %03d %s\r\n"
            "Server: dbalster/httpd\r\n"
            "Cache-Control: no-cache\r\n"
            "Content-Length: %d\r\n"
@@ -437,33 +452,33 @@ CAPI bool webresponse_response (WebResponse* _context, unsigned int _code, const
   // write the actual content (the "page")
   if (_content)
   {
-    webresponse_write(_context, _content, (int)contentLength);
+    httpresponse_write(_context, _content, (int)contentLength);
   }
 
   return false;
 }
 
-CAPI const char* webresponse_location (WebResponse* _context)
+HTTPD_C_API const char* httpresponse_location (HttpResponse* _context)
 {
 	return _context->location;
 }
 
-CAPI const char*	webresponse_method(WebResponse* _context)
+HTTPD_C_API const char*	httpresponse_method(HttpResponse* _context)
 {
 	return _context->method;
 }
 
-CAPI int webresponse_get_n_args(WebResponse* _context)
+HTTPD_C_API int httpresponse_get_n_args(HttpResponse* _context)
 {
 	return _context->n_args;
 }
 
-CAPI int webresponse_get_n_headers(WebResponse* _context)
+HTTPD_C_API int httpresponse_get_n_headers(HttpResponse* _context)
 {
 	return _context->n_headers;
 }
 
-CAPI void webresponse_begin(WebResponse* _context, unsigned int _code, const char* _userHeader)
+HTTPD_C_API void httpresponse_begin(HttpResponse* _context, unsigned int _code, const char* _userHeader)
 {
   const char* message = "???";
   // for this few messages we don't need binsearch
@@ -479,7 +494,7 @@ CAPI void webresponse_begin(WebResponse* _context, unsigned int _code, const cha
   const char* userHeader = _userHeader ? _userHeader : "Content-Type: text/html\r\n";
 
   // send HTTP header
-  webresponse_writef(_context, "HTTP/1.1 %03d %s\r\n"
+  httpresponse_writef(_context, "HTTP/1.1 %03d %s\r\n"
            "Server: dbalster/http\r\n"
            "Cache-Control: no-cache\r\n"
            "Transfer-Encoding: chunked\r\n"
@@ -489,13 +504,13 @@ CAPI void webresponse_begin(WebResponse* _context, unsigned int _code, const cha
   _context->chunked = true;
 }
 
-CAPI void webresponse_end(WebResponse* _context )
+HTTPD_C_API void httpresponse_end(HttpResponse* _context )
 {
-    webresponse_write(_context, "0\r\n\r\n", 5);
+    httpresponse_write(_context, "0\r\n\r\n", 5);
     _context->chunked = false;
 }
 
-CAPI const char* webresponse_get_arg(WebResponse* _context, const char* _key) 
+HTTPD_C_API const char* httpresponse_get_arg(HttpResponse* _context, const char* _key) 
 {
 	HttpHeader p;
 	p.name = ((char*)_key);
@@ -504,13 +519,13 @@ CAPI const char* webresponse_get_arg(WebResponse* _context, const char* _key)
   return 0;
 }
 
-CAPI const HttpHeader* webresponse_get_arg_by_index(WebResponse* _context, int _index) 
+HTTPD_C_API const HttpHeader* httpresponse_get_arg_by_index(HttpResponse* _context, int _index) 
 {
   if (_index < 0 || _index >= _context->n_args) return 0;
   return &(_context->args[_index]);
 }
 
-CAPI const char* webresponse_get_header(WebResponse* _context, const char* _key) 
+HTTPD_C_API const char* httpresponse_get_header(HttpResponse* _context, const char* _key) 
 {
 	HttpHeader p;
 	p.name = ((char*)_key);
@@ -519,8 +534,312 @@ CAPI const char* webresponse_get_header(WebResponse* _context, const char* _key)
   return 0;
 }
 
-CAPI const HttpHeader* webresponse_get_header_by_index(WebResponse* _context, int _index) 
+HTTPD_C_API const HttpHeader* httpresponse_get_header_by_index(HttpResponse* _context, int _index) 
 {
   if (_index < 0 || _index >= _context->n_headers) return 0;
   return &(_context->headers[_index]);
 }
+
+// httpd
+
+struct _Httpd
+{
+  int                 socket;
+  void*               userdata;
+	HttpRequestHandler  handler;
+};
+
+Httpd* httpd_create ( unsigned short _port, HttpRequestHandler _handler, void* _userdata )
+{
+  bool result = false;
+	Httpd* server = (Httpd*) calloc(1,sizeof(Httpd));
+		
+	server->handler = _handler;
+  server->userdata = _userdata;
+
+  server->socket = (int) socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  if (server->socket == -1)
+  {
+    printf ("socket");
+  }
+
+  int opt = 1;
+  if (setsockopt(server->socket, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt)))
+  {
+    printf ("setsocketopt");
+  }
+
+  struct sockaddr_in sa;
+  sa.sin_port = htons(_port);
+  sa.sin_family = AF_INET;
+  sa.sin_addr.s_addr = INADDR_ANY;
+  if (bind(server->socket, (struct sockaddr*)&sa, sizeof(sa)))
+  {
+    printf ("bind");
+  }
+
+  if (-1 == listen(server->socket, 5))
+  {
+    printf ("listen");
+  }
+  else
+  {
+    result = true;
+  }
+  
+  if (result==false)
+  {
+    httpd_destroy(server);
+    return 0;
+  }
+
+  return server;
+}
+
+void httpd_destroy (Httpd* _server)
+{
+  if (_server)
+  {
+    closesocket(_server->socket);
+    free (_server);
+  }
+}
+
+void httpd_process (Httpd* _server, bool _blocking)
+{
+  if (-1 == _server->socket) return;
+
+  struct sockaddr_in sa;
+  int sin_size = sizeof(sa);
+
+  if (false == _blocking)
+  {
+    fd_set fds;
+    struct timeval tv;
+    int rc;
+
+    tv.tv_sec = 0;
+    tv.tv_usec = 0;
+
+    FD_ZERO(&fds);
+    FD_SET(_server->socket, &fds);
+    rc = select(_server->socket + 1, &fds, NULL, NULL, &tv);
+
+    if (rc <= 0) return;
+  }
+
+  int client = (int)accept(_server->socket, (struct sockaddr*)&sa, (socklen_t*)&sin_size);
+  if (client < 0) return;
+
+  HttpResponse* req = httpresponse_create (client); 
+  if (req)
+  {
+    if (httpresponse_parse (req))
+    {
+      _server->handler(req,_server->userdata);
+    }
+    httpresponse_destroy(req);
+  }
+  else
+  {
+    closesocket(client);
+  }
+}
+
+
+struct _HttpRequest {
+  unsigned short  result;
+  unsigned short  port;
+  size_t          bytesUsed;
+  size_t          maxBytes;
+  // internal scratchpad
+  char            bytes[1];  
+};
+
+void* httprequest_alloc( HttpRequest* _req, size_t _size )
+{
+  char* p = _req->bytes + _req->bytesUsed;
+  _req->bytesUsed += _size;
+  return p;
+}
+
+HTTPD_C_API void httprequest_sprintf( HttpRequest* _req, const char* _fmt, ... )
+{
+  va_list ap;
+  va_start(ap,_fmt);
+  // TODO: vsnprintf
+  int len = vsprintf(_req->bytes + _req->bytesUsed,_fmt,ap);
+  _req->bytesUsed += len;
+  va_end(ap);
+}
+
+HTTPD_C_API void httprequest_strcat( HttpRequest* _req, const char* _orig )
+{
+  char* p = _req->bytes + _req->bytesUsed;
+  int i=0;
+  while (*_orig && _req->bytesUsed<_req->maxBytes)
+  {
+    p[i++] = *_orig++;
+    _req->bytesUsed++;
+  }
+}
+
+static char* httprequest_strdup( HttpRequest* _req, const char* _orig )
+{
+  char* p = _req->bytes + _req->bytesUsed;
+  int i=0;
+  while (*_orig && _req->bytesUsed<_req->maxBytes)
+  {
+    p[i++] = *_orig++;
+    _req->bytesUsed++;
+  }
+  p[i] = 0;
+  _req->bytesUsed++;
+  return p;
+}
+
+HTTPD_C_API HttpRequest* httprequest_create( const char* _hostname, unsigned short _port, const char* _location, const char* _method, size_t _maxBytes )
+{
+  HttpRequest* req = (HttpRequest*) calloc(1,sizeof(HttpRequest)+_maxBytes);
+  if (req)
+  {
+    req->maxBytes = _maxBytes;
+    req->bytesUsed = 0;    
+    httprequest_strdup(req,_hostname);
+    req->port = _port;    
+    httprequest_sprintf(req,"%s %s HTTP/1.1\r\n",_method,_location);
+    httprequest_strcat(req,"Host: dbalster\r\n");
+    httprequest_strcat(req,"Connection: close\r\n");
+    httprequest_strcat(req,"Content-Length: 00000000\r\n");
+    
+    httprequest_reset(req);
+  }
+  return req;
+}
+
+HTTPD_C_API void httprequest_reset( HttpRequest* _req )
+{
+  char* p = _req->bytes+1+strlen(_req->bytes);
+  p = strstr(p,"Content-Length:");
+  if (p)
+  {
+    _req->bytesUsed = p-_req->bytes;
+    httprequest_strcat(_req,"Content-Length: 00000000\r\n");
+  }
+}
+
+static bool httprequest_error(const char* _msg, ... )
+{
+  char msg[1000];
+  va_list ap;
+  va_start(ap,_msg);
+  vsprintf(msg,_msg,ap);
+  va_end(ap);
+  fprintf(stderr,"ERROR: %s: %s\n",strerror(errno),msg);
+  return false;
+}
+
+HTTPD_C_API bool httprequest_execute( HttpRequest* _req )
+{
+  bool result = false;
+  char* hostname = _req->bytes;
+  char* start = hostname+strlen(hostname)+1;
+  char* p = strstr(start,"\r\n\r\n");
+  if (p==0)
+  {
+    httprequest_strcat(_req,"\r\n");
+    p = strstr(start,"\r\n\r\n");
+  }
+  if (p)
+  {
+    p += 4; // skip CRLFCRLF
+    char* end = _req->bytes + _req->bytesUsed;
+    int contentSize = (int)(end - p);
+    char* contentLength = strstr(start,"Content-Length: ") + strlen("Content-Length: ");
+    sprintf(contentLength,"%8d",contentSize);
+    contentLength[8] = '\r';
+  
+    struct hostent* server = gethostbyname(hostname);
+    if (0==server)
+    {
+      return httprequest_error(hostname);
+    }
+    int sock = (int) socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
+    if (sock==-1)
+    {
+      return httprequest_error("socket()");
+    }
+    struct sockaddr_in serv_addr;
+    memset((char *) &serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    memcpy((char *)&serv_addr.sin_addr.s_addr, (char *)server->h_addr, server->h_length);
+    serv_addr.sin_port = htons(_req->port);
+    if (connect(sock,(struct sockaddr*)&serv_addr,sizeof(serv_addr)) < 0)
+    {
+      httprequest_error("connect()");
+    }
+    else
+    {
+      int len = strlen(start);
+      int written = send(sock,start,len,0);
+      if (written == len)
+      {
+        int read = recv(sock,_req->bytes,_req->maxBytes,0);
+        if (read>=0)
+        {
+          _req->bytes[read]=0;
+
+          if ( recv(sock,_req->bytes+read,_req->maxBytes-read,MSG_PEEK) || errno==EAGAIN)
+          {
+            int read2 = recv(sock,_req->bytes+read,_req->maxBytes-read,0);
+            if (read2>0) _req->bytes[read+read2]=0; 
+          }
+          result = true;
+        }
+      }
+    }
+    closesocket(sock);
+  }
+  else
+  {
+    httprequest_error("invalid header and content");
+  }
+  
+  return result;
+}
+
+HTTPD_C_API size_t httprequest_get_content_length( HttpRequest* _req )
+{
+  return strtoul(httprequest_get_header(_req,"Content-Length:"),0,0);
+}
+
+HTTPD_C_API const char* httprequest_get_header( HttpRequest* _req, const char* _header )
+{
+  char* p = strstr(_req->bytes,_header);
+  if (p)
+  {
+    return p+strlen(_header);
+  }
+  return 0;
+}
+
+HTTPD_C_API const char* httprequest_get_content( HttpRequest* _req )
+{
+  return strstr(_req->bytes,"\r\n\r\n") + 4;
+}
+
+HTTPD_C_API int httprequest_get_result( HttpRequest* _req )
+{
+  int result = 0;
+  result = strtoul( _req->bytes + strlen("HTTP/1.1"),0,0);
+  return result;
+}
+
+HTTPD_C_API void httprequest_destroy( HttpRequest* _req )
+{
+  if (_req)
+  {
+    free(_req);
+  }
+}
+
