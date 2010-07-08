@@ -46,7 +46,7 @@ typedef struct _HttpHeader HttpHeader;
 typedef struct _Httpd Httpd;
 typedef struct _HttpRequest HttpRequest;
 
-typedef void (*HttpRequestHandler)( HttpResponse* _response, void* _userdata );
+typedef void  (*HttpRequestHandler)( HttpResponse* _response, void* _userdata );
 
 struct _HttpHeader
 {
@@ -54,8 +54,9 @@ struct _HttpHeader
   char* value;
 };
 
-// simple wrapper for a http request
-// just recv's the result into a buffer, that's it.
+HTTPD_C_API Httpd* httpd_create (unsigned short _port, HttpRequestHandler _handler, void* _userdata);
+HTTPD_C_API void httpd_destroy (Httpd* _server);
+HTTPD_C_API void httpd_process (Httpd* _server, bool _blocking);
 
 HTTPD_C_API HttpRequest* httprequest_create( const char* _hostname, unsigned short _port, const char* _location, const char* _method, size_t _maxBytes );
 HTTPD_C_API void httprequest_sprintf( HttpRequest* _req, const char* _fmt, ... );
@@ -67,12 +68,6 @@ HTTPD_C_API const char* httprequest_get_content( HttpRequest* _req );
 HTTPD_C_API size_t httprequest_get_content_length( HttpRequest* _req );
 HTTPD_C_API void httprequest_destroy( HttpRequest* _req );
 HTTPD_C_API void httprequest_reset( HttpRequest* _req );
-
-// httpd
-
-HTTPD_C_API Httpd* httpd_create (unsigned short _port, HttpRequestHandler _handler, void* _userdata);
-HTTPD_C_API void httpd_destroy (Httpd* _server);
-HTTPD_C_API void httpd_process (Httpd* _server, bool _blocking);
 
 HTTPD_C_API HttpResponse* httpresponse_create (unsigned int _socket);
 HTTPD_C_API void httpresponse_destroy (HttpResponse* _context);
