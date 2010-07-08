@@ -7,10 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		2810E06411C0C6C5004BB715 /* webrequest.c in Sources */ = {isa = PBXBuildFile; fileRef = 2810E05E11C0C6C5004BB715 /* webrequest.c */; };
-		2810E06511C0C6C5004BB715 /* webresponse.c in Sources */ = {isa = PBXBuildFile; fileRef = 2810E06011C0C6C5004BB715 /* webresponse.c */; };
-		2810E06611C0C6C5004BB715 /* webserver.c in Sources */ = {isa = PBXBuildFile; fileRef = 2810E06211C0C6C5004BB715 /* webserver.c */; };
 		28418D3611D26EF8000F655B /* untitled.xml in CopyFiles */ = {isa = PBXBuildFile; fileRef = 28418D3511D26ED6000F655B /* untitled.xml */; };
+		2859FBFA11D52FF90013A0B7 /* httpd.c in Sources */ = {isa = PBXBuildFile; fileRef = 2859FBF811D52FF90013A0B7 /* httpd.c */; };
 		8DD76FAC0486AB0100D96B5E /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 08FB7796FE84155DC02AAC07 /* main.c */; settings = {ATTRIBUTES = (); }; };
 /* End PBXBuildFile section */
 
@@ -29,15 +27,9 @@
 
 /* Begin PBXFileReference section */
 		08FB7796FE84155DC02AAC07 /* main.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
-		2810E05E11C0C6C5004BB715 /* webrequest.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = webrequest.c; sourceTree = "<group>"; };
-		2810E05F11C0C6C5004BB715 /* webrequest.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = webrequest.h; sourceTree = "<group>"; };
-		2810E06011C0C6C5004BB715 /* webresponse.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = webresponse.c; sourceTree = "<group>"; };
-		2810E06111C0C6C5004BB715 /* webresponse.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = webresponse.h; sourceTree = "<group>"; };
-		2810E06211C0C6C5004BB715 /* webserver.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = webserver.c; sourceTree = "<group>"; };
-		2810E06311C0C6C5004BB715 /* webserver.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = webserver.h; sourceTree = "<group>"; };
-		2810E06911C0C77F004BB715 /* network.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = network.h; sourceTree = "<group>"; };
-		2810E06D11C0C7BF004BB715 /* config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = config.h; sourceTree = "<group>"; };
 		28418D3511D26ED6000F655B /* untitled.xml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = untitled.xml; sourceTree = "<group>"; };
+		2859FBF811D52FF90013A0B7 /* httpd.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = httpd.c; sourceTree = "<group>"; };
+		2859FBF911D52FF90013A0B7 /* httpd.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = httpd.h; sourceTree = "<group>"; };
 		8DD76FB20486AB0100D96B5E /* Httpd */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = Httpd; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -64,14 +56,8 @@
 		08FB7795FE84155DC02AAC07 /* Source */ = {
 			isa = PBXGroup;
 			children = (
-				2810E06D11C0C7BF004BB715 /* config.h */,
-				2810E06911C0C77F004BB715 /* network.h */,
-				2810E05E11C0C6C5004BB715 /* webrequest.c */,
-				2810E05F11C0C6C5004BB715 /* webrequest.h */,
-				2810E06011C0C6C5004BB715 /* webresponse.c */,
-				2810E06111C0C6C5004BB715 /* webresponse.h */,
-				2810E06211C0C6C5004BB715 /* webserver.c */,
-				2810E06311C0C6C5004BB715 /* webserver.h */,
+				2859FBF811D52FF90013A0B7 /* httpd.c */,
+				2859FBF911D52FF90013A0B7 /* httpd.h */,
 				08FB7796FE84155DC02AAC07 /* main.c */,
 				28418D3511D26ED6000F655B /* untitled.xml */,
 			);
@@ -130,9 +116,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8DD76FAC0486AB0100D96B5E /* main.c in Sources */,
-				2810E06411C0C6C5004BB715 /* webrequest.c in Sources */,
-				2810E06511C0C6C5004BB715 /* webresponse.c in Sources */,
-				2810E06611C0C6C5004BB715 /* webserver.c in Sources */,
+				2859FBFA11D52FF90013A0B7 /* httpd.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
