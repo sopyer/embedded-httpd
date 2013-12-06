@@ -180,7 +180,18 @@ HTTPD_C_API void httpresponse_destroy (HttpResponse* _context)
 
 HTTPD_C_API int httpresponse_write(HttpResponse* _context, const void* _memory, const int _size)
 {
-  return send(_context->netsocket, (const char*)_memory, (int)_size, 0);
+  int sendButes = 0;
+  while(sendButes < _size)
+  {
+	  int ret = send(_context->netsocket, &(((const char*)_memory)[sendButes]), (int)_size - sendButes, 0);
+	  if (ret != SOCKET_ERROR)
+	  {
+		  sendButes += ret;
+	  }
+	  else
+		  return -1;
+  }
+  return sendButes;
 }
 
 static int httpresponse_read(HttpResponse* _context, void* _memory, const int _size)
