@@ -338,9 +338,9 @@ HTTPD_C_API bool httpresponse_parse(HttpResponse* _context)
       if (strings[i] == '\r' && needeol)
       {
         needeol = false;
-        _context->headers[pair].value = last;
+        _context->headers[pair].value = last+1;
         ++pair;
-        last = strings + i + 1;
+        last = strings + i + 2; // strlen("\r\n")
         strings[i] = 0;
       }
     }
