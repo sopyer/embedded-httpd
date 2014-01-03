@@ -141,6 +141,7 @@ HttpErrorMessages[] =
 {
   { 100, "Continue" }, 
   { 200, "OK" }, 
+  { 206, "Partial Content" },
   { 220, "OK" }, 
   { 302, "Found" }, 
   { 303, "See Other" }, 
@@ -249,14 +250,15 @@ HTTPD_C_API bool httpresponse_parse(HttpResponse* _context)
 
   char* eoh = 0;			// end of header
 
-  if (0 == strcmp(method, "POST") || 0 == strcmp(method, "GET"))
+  if (0 == strcmp(method, "POST") || 0 == strcmp(method, "GET") || 0 == strcmp(method, "OPTIONS"))
   {
     // mozilla sends the header in two chunks, yeah.
     eoh = strstr(eol, "\r\n\r\n");
-    if (0 == eoh)
+    if(0 == eoh)
     {
       bytesRead += httpresponse_read(_context, buffer + bytesRead, RECEIVE_BUFFER_SIZE - bytesRead - 1);
       buffer[bytesRead] = 0;
+      eoh = strstr(eol, "\r\n\r\n");
     }
     
     if (0 == eoh)
