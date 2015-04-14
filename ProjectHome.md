@@ -1,0 +1,1 @@
+I wrote this httpd nearly a decade ago and it helped me a lot in debugging my C/C++ applications on headless platforms like playstation, nintendo and so on. you may find it useful, too!
